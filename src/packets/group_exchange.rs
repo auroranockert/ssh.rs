@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use num::bigint::{BigInt, RandBigInt};
+use num::bigint::BigInt;
 
 use sshio::{SSHRead, SSHWrite};
 
