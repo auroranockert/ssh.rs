@@ -1,6 +1,7 @@
 pub mod group_exchange;
 pub mod disconnect;
 pub mod key_exchange;
+pub mod authentication_request;
 
 use std::io::{Read, Write};
 
@@ -14,7 +15,8 @@ pub enum SSHPacket {
   GroupExchangeRequest(group_exchange::Request),
   GroupExchangeGroup(group_exchange::Group),
   GroupExchangeInit(group_exchange::Init),
-  GroupExchangeReply(group_exchange::Reply)
+  GroupExchangeReply(group_exchange::Reply),
+  AuthenticationRequest(authentication_request::AuthenticationRequest)
 }
 
 impl SSHPacket {
@@ -29,6 +31,7 @@ impl SSHPacket {
       32 => SSHPacket::GroupExchangeInit(group_exchange::Init::read(reader)),
       33 => SSHPacket::GroupExchangeReply(group_exchange::Reply::read(reader)),
       34 => SSHPacket::GroupExchangeRequest(group_exchange::Request::read(reader)),
+      50 => SSHPacket::AuthenticationRequest(authentication_request::AuthenticationRequest::read(reader)),
       _ => {
         panic!(format!("Oh noes, unknown packet type {:?}", t));
       }
@@ -63,6 +66,10 @@ impl SSHPacket {
       }
       &SSHPacket::GroupExchangeRequest(ref p) => {
         writer.write_u8(34).unwrap();
+        p.write(writer);
+      }
+      &SSHPacket::AuthenticationRequest(ref p) => {
+        writer.write_u8(50).unwrap();
         p.write(writer);
       }
     }

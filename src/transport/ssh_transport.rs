@@ -14,6 +14,7 @@ use rand::Rng;
 use packets::SSHPacket;
 use packets::group_exchange;
 use packets::key_exchange;
+use packets::authentication_request;
 
 use hash::{Hash, SHA256};
 
