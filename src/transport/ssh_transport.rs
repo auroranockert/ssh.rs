@@ -35,7 +35,7 @@ impl<'a> Transport<'a> {
       version_exchange: vex
     };
 
-    let s_kex = match transport.read_packet() {
+    let s_kex = match transport.read() {
       SSHPacket::KeyExchange(k) => k,
       _ => panic!("FIXME: Unhandled message during key exchange")
     };
@@ -52,7 +52,7 @@ impl<'a> Transport<'a> {
     for x in cookie.iter_mut() { *x = rng.gen::<u8>() }
 
     let enc = vec![
-      "aes128-cbc".to_string(),
+      "aes128-ctr".to_string(),
     ];
 
     let mac = vec![
@@ -77,20 +77,20 @@ impl<'a> Transport<'a> {
       ..Default::default()
     };
 
-    self.write_packet(&SSHPacket::KeyExchange(kex.clone()));
+    self.write(&SSHPacket::KeyExchange(kex.clone()));
 
     return kex;
   }
-  
+
   pub fn rekey(&mut self, kex_c: &key_exchange::KeyExchangeInit, kex_s: &key_exchange::KeyExchangeInit) {
     // TODO: Support other methods than Group Exchange Diffie-Hellman
     // TODO: Check if Group Exchange is supported by the other side
 
     let gex = group_exchange::Request { min: 1024, n: 1024, max: 8192 };
 
-    self.write_packet(&SSHPacket::GroupExchangeRequest(gex));
-    
-    let geg = match self.read_packet() {
+    self.write(&SSHPacket::GroupExchangeRequest(gex.clone()));
+
+    let geg = match self.read() {
       SSHPacket::GroupExchangeGroup(g) => g,
       p => {
         println!("{:?}", p);
@@ -106,40 +106,80 @@ impl<'a> Transport<'a> {
 
     let gei = group_exchange::Init { e: e.clone() };
 
-    self.write_packet(&SSHPacket::GroupExchangeInit(gei));
+    self.write(&SSHPacket::GroupExchangeInit(gei));
 
-    let ger = match self.read_packet() {
+    let ger = match self.read() {
       SSHPacket::GroupExchangeReply(g) => g,
       _ => panic!("Unexpected packet!")
     };
 
+    let k = mod_exp(&ger.f, &x, &p);
+
+    println!("Shared key: {:?}", k);
+
     let mut writer = io::Cursor::new(Vec::new());
 
-    writer.write_all(self.version_exchange.client.as_bytes()).unwrap();
-    writer.write_all(self.version_exchange.server.as_bytes()).unwrap();
+    writer.write_string(&self.version_exchange.client);
+    writer.write_string(&self.version_exchange.server);
 
-    kex_c.write(&mut writer);
-    kex_s.write(&mut writer);
+    let mut w = io::Cursor::new(Vec::new());
+    SSHPacket::KeyExchange(kex_c.clone()).write(&mut w);
+    writer.write_binary_string(&w.into_inner()[..]);
 
-    writer.write_all(&ger.host_key_and_certificates[..]).unwrap();
+    let mut w = io::Cursor::new(Vec::new());
+    SSHPacket::KeyExchange(kex_s.clone()).write(&mut w);
+    writer.write_binary_string(&w.into_inner()[..]);
+
+    writer.write_binary_string(&ger.host_key_and_certificates);
+    writer.write_uint32(gex.min);
+    writer.write_uint32(gex.n);
+    writer.write_uint32(gex.max);
+    writer.write_mpint(&p);
+    writer.write_mpint(&geg.g);
     writer.write_mpint(&e);
     writer.write_mpint(&ger.f);
-    writer.write_mpint(&mod_exp(&ger.f, &x, &p));
+    writer.write_mpint(&k);
+
+    let buffer = writer.into_inner();
+
+    println!("Buffer: {:?}", buffer);
 
     let mut hash = SHA256::new();
 
-    hash.update(&writer.into_inner()[..]);
+    hash.update(&buffer[..]);
 
     let h = hash.digest();
 
-    self.write_packet(&SSHPacket::NewKeys(key_exchange::NewKeys));
+    let session_identifier = match &self.session_identifier {
+      &None => h.clone(),
+      &Some(ref s) => s.clone()
+    };
 
-    
+    self.session_identifier = Some(session_identifier.clone());
+
+    let iv_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"A", &session_identifier[..]);
+    let iv_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"B", &session_identifier[..]);
+
+    let enc_key_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"C", &session_identifier[..]);
+    let enc_key_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"D", &session_identifier[..]);
+
+    let mac_key_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"E", &session_identifier[..]);
+    let mac_key_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"F", &session_identifier[..]);
+
     println!("Session ID: {:?}", h);
+    println!("IV (c2s): {:?}", iv_c2s);
+    println!("IV (s2c): {:?}", iv_s2c);
+    println!("Key (c2s): {:?}", enc_key_c2s);
+    println!("Key (s2c): {:?}", enc_key_s2c);
+    println!("MAC (c2s): {:?}", mac_key_c2s);
+    println!("MAC (s2c): {:?}", mac_key_s2c);
+
+    self.write(&SSHPacket::NewKeys(key_exchange::NewKeys));
+
     panic!("Oh noes, sowwy, not implemented :C")
   }
 
-  pub fn read_packet(&mut self) -> SSHPacket {
+  pub fn read(&mut self) -> SSHPacket {
     let packet_length = self.socket.read_u32::<BigEndian>().unwrap();
     let padding_length = self.socket.read_u8().unwrap() as u32;
 
@@ -154,7 +194,7 @@ impl<'a> Transport<'a> {
     return SSHPacket::read(&mut reader);
   }
 
-  pub fn write_packet(&mut self, packet: &SSHPacket) {
+  pub fn write(&mut self, packet: &SSHPacket) {
     let mut writer = io::Cursor::new(Vec::new());
 
     packet.write(&mut writer);
@@ -175,8 +215,19 @@ impl<'a> Transport<'a> {
   }
 }
 
+fn generate_key(hsh: &mut Hash, k: &BigInt, h: &[u8], c: &[u8], sid: &[u8]) -> Vec<u8> {
+  let mut w = io::Cursor::new(Vec::new());
+  w.write_mpint(k);
 
-pub fn mod_exp(base: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
+  hsh.update(&w.into_inner()[..]);
+  hsh.update(h);
+  hsh.update(c);
+  hsh.update(sid);
+
+  return hsh.digest();
+}
+
+fn mod_exp(base: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
   let mut result: BigUint = One::one();
   let mut base = base.to_biguint().unwrap();
   let mut exponent = exponent.to_biguint().unwrap();

@@ -31,7 +31,7 @@ impl<'a> Socket<'a> {
     assert_eq!(&name[0 .. 8], "SSH-2.0-");
 
     return VersionExchange {
-      client: client_identifier,
+      client: SSH_IDENTIFIER_CLIENT.to_owned(),
       server: name
     };
   }

@@ -7,6 +7,9 @@ use sshio::{SSHRead, SSHWrite};
 #[cfg(test)]
 use quickcheck::{Arbitrary, Gen};
 
+#[cfg(test)]
+use num::bigint::RandBigInt;
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Request {
   pub min: u32,

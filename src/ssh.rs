@@ -26,7 +26,7 @@ mod sshio;
 mod packets;
 
 fn main() {
-  let mut tcp_socket = TcpStream::connect("127.0.0.1:22").unwrap();
+  let mut tcp_socket = TcpStream::connect("127.0.0.1:9001").unwrap();
 
   let reader = &mut tcp_socket.try_clone().unwrap() as &mut Read;
   let writer = &mut tcp_socket as &mut Write;
@@ -34,5 +34,5 @@ fn main() {
   let mut socket = transport::ssh_socket::Socket::new(reader, writer);
   let mut transport = transport::ssh_transport::Transport::new(&mut socket);
 
-  println!("Packet!: {:?}", transport.read_packet());
+  println!("Packet!: {:?}", transport.read());
 }
