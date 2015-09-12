@@ -11,8 +11,7 @@ use num::bigint::{BigInt, BigUint, ToBigInt, RandBigInt};
 use rand;
 use rand::Rng;
 
-use ::SSHPacket;
-
+use packets::SSHPacket;
 use packets::group_exchange;
 use packets::key_exchange;
 

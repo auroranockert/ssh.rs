@@ -1,6 +1,5 @@
 use std::io;
 use std::io::{Read, Write};
-use std::io::Cursor;
 
 use std::iter::FromIterator;
 
@@ -11,12 +10,6 @@ use num::BigInt;
 use num::bigint::Sign;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-
-use SSHPacket;
-
-use packets::disconnect;
-use packets::group_exchange;
-use packets::key_exchange;
 
 pub trait SSHRead : Read {
   fn read_n_into_buffer(&mut self, buffer: &mut [u8]) {
@@ -81,37 +74,6 @@ pub trait SSHRead : Read {
     let string = self.read_string();
     return Vec::from_iter(string.split(',').map(|x| { String::from(x) }));
   }
-
-  fn read_raw_ssh_packet(&mut self, mac_length: u32) -> (Vec<u8>, Vec<u8>, Vec<u8>){
-    let packet_length = self.read_u32::<BigEndian>().unwrap();
-    let padding_length = self.read_u8().unwrap() as u32;
-
-    let payload = self.read_n(packet_length - padding_length - 1);
-    let padding = self.read_n(padding_length);
-    let mac = self.read_n(mac_length);
-
-    return (payload, padding, mac);
-  }
-
-  fn read_packet(&mut self) -> SSHPacket {
-    let (payload, _, _) = self.read_raw_ssh_packet(0);
-
-    let reader = &mut Cursor::new(&payload[1 ..]);
-
-    return match payload[0] {
-      1 => SSHPacket::Disconnect(disconnect::Disconnect::read(reader)),
-      20 => SSHPacket::KeyExchange(key_exchange::KeyExchangeInit::read(reader)),
-      21 => SSHPacket::NewKeys(key_exchange::NewKeys::read(reader)),
-      31 => SSHPacket::GroupExchangeGroup(group_exchange::Group::read(reader)),
-      32 => SSHPacket::GroupExchangeInit(group_exchange::Init::read(reader)),
-      33 => SSHPacket::GroupExchangeReply(group_exchange::Reply::read(reader)),
-      34 => SSHPacket::GroupExchangeRequest(group_exchange::Request::read(reader)),
-      _ => {
-        println!("{:?}", payload);
-        panic!("Oh noes");
-      }
-    }
-  }
 }
 
 impl<T: Read> SSHRead for T {}
@@ -175,59 +137,6 @@ pub trait SSHWrite : Write {
 
   fn write_name_list(&mut self, name_list: &Vec<String>) {
     self.write_string(name_list.join(",").as_str());
-  }
-
-  fn write_raw_ssh_packet(&mut self, payload: &[u8]) {
-    let padding_length = 8 - (5 + payload.len()) % 8;
-    let padding_length = if padding_length < 4 { padding_length + 8 } else { padding_length };
-
-    self.write_u32::<BigEndian>((payload.len() + padding_length + 1) as u32).unwrap();
-    self.write_u8(padding_length as u8).unwrap();
-
-    let padding = vec![0u8; padding_length];
-
-    self.write_all(payload).unwrap();
-    self.write_all(&padding[..]).unwrap();
-    // TODO: MAC
-  }
-
-  fn write_packet(&mut self, packet: &SSHPacket) {
-    let mut writer = Cursor::new(Vec::new());
-
-    match packet {
-      &SSHPacket::Disconnect(ref p) => {
-        writer.write_u8(1).unwrap();
-        p.write(&mut writer);
-      }
-      &SSHPacket::KeyExchange(ref p) => {
-        writer.write_u8(20).unwrap();
-        p.write(&mut writer);
-      }
-      &SSHPacket::NewKeys(ref p) => {
-        writer.write_u8(21).unwrap();
-        p.write(&mut writer);
-      }
-      &SSHPacket::GroupExchangeGroup(ref p) => {
-        writer.write_u8(31).unwrap();
-        p.write(&mut writer);
-      }
-      &SSHPacket::GroupExchangeInit(ref p) => {
-        writer.write_u8(32).unwrap();
-        p.write(&mut writer);
-      }
-      &SSHPacket::GroupExchangeReply(ref p) => {
-        writer.write_u8(33).unwrap();
-        p.write(&mut writer);
-      }
-      &SSHPacket::GroupExchangeRequest(ref p) => {
-        writer.write_u8(34).unwrap();
-        p.write(&mut writer);
-      }
-    }
-
-    let payload = writer.into_inner();
-
-    self.write_raw_ssh_packet(&payload[..]);
   }
 }
 
