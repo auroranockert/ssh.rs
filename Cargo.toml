@@ -1,0 +1,18 @@
+[package]
+name = "ssh"
+version = "0.1.0"
+authors = ["Jens Nockert <jens@nockert.se>"]
+build = "build.rs"
+
+[dependencies]
+num = "*"
+rand = "0.3"
+byteorder = "0.3"
+
+[dev-dependencies]
+quickcheck = "0.2"
+quickcheck_macros = "0.2"
+
+[[bin]]
+name = "ssh"
+path = "src/ssh.rs"
