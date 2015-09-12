@@ -106,8 +106,9 @@ fn ssh_connect(to: &str) {
   };
 
   let p = geg.p;
+  let g = geg.g;
   let x = rng.gen_bigint_range(&2.to_bigint().unwrap(), &((&p - &1.to_bigint().unwrap()) / &2.to_bigint().unwrap()));
-  let e = mod_exp(&geg.g, &x, &p);
+  let e = mod_exp(&g, &x, &p);
 
   let gei = group_exchange::Init { e: e.clone() };
 
