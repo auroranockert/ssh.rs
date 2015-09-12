@@ -9,6 +9,9 @@ num = "*"
 rand = "0.3"
 byteorder = "0.3"
 
+[dependencies.rust-gmp]
+git = "https://github.com/fizyk20/rust-gmp.git"
+
 [dev-dependencies]
 quickcheck = "0.2"
 quickcheck_macros = "0.2"
