@@ -34,6 +34,9 @@ impl AuthenticationRequestMethodName {
   }
 }
 
+
+
+/// SSH_MSG_USERAUTH_REQUEST, 50
 #[derive(Clone, Debug, PartialEq)]
 pub struct AuthenticationRequest {
   pub user_name: String,

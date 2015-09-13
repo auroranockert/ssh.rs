@@ -43,9 +43,14 @@ extern {
   fn MD5_Final(result: *mut u8, context: *mut MD5_CTX) -> libc::c_int;
 }
 
-pub struct MD5 { context: MD5_CTX }
+/// A MD5 hash.
+pub struct MD5 {
+  context: MD5_CTX
+}
 
+/// A MD5 hash.
 impl MD5 {
+  /// Constructs a new MD5 hash.
   pub fn new() -> MD5 {
     let mut context: MD5_CTX = Default::default();
 
@@ -108,9 +113,14 @@ extern {
   fn SHA1_Final(result: *mut u8, context: *mut SHA_CTX) -> libc::c_int;
 }
 
-pub struct SHA1 { context: SHA_CTX }
+/// A SHA1 hash.
+pub struct SHA1 {
+  context: SHA_CTX
+}
 
+/// A SHA1 hash.
 impl SHA1 {
+  /// Constructs a new SHA1 hash.
   pub fn new() -> SHA1 {
     let mut context: SHA_CTX = Default::default();
 
@@ -173,9 +183,14 @@ extern {
   fn SHA224_Final(result: *mut u8, context: *mut SHA256_CTX) -> libc::c_int;
 }
 
-pub struct SHA224 { context: SHA256_CTX }
+/// A SHA224 hash.
+pub struct SHA224 {
+  context: SHA256_CTX
+}
 
+/// A SHA224 hash.
 impl SHA224 {
+  /// Constructs a new SHA224 hash.
   pub fn new() -> SHA224 {
     let mut context: SHA256_CTX = Default::default();
 
@@ -238,9 +253,14 @@ extern {
   fn SHA256_Final(result: *mut u8, context: *mut SHA256_CTX) -> libc::c_int;
 }
 
-pub struct SHA256 { context: SHA256_CTX }
+/// A SHA256 hash.
+pub struct SHA256 {
+  context: SHA256_CTX
+}
 
+/// A SHA256 hash.
 impl SHA256 {
+  /// Constructs a new SHA256 hash.
   pub fn new() -> SHA256 {
     let mut context: SHA256_CTX = Default::default();
 
@@ -303,9 +323,14 @@ extern {
   fn SHA384_Final(result: *mut u8, context: *mut SHA512_CTX) -> libc::c_int;
 }
 
-pub struct SHA384 { context: SHA512_CTX }
+/// A SHA384 hash.
+pub struct SHA384 {
+  context: SHA512_CTX
+}
 
+/// A SHA384 hash.
 impl SHA384 {
+  /// Constructs a new SHA384 hash.
   pub fn new() -> SHA384 {
     let mut context: SHA512_CTX = Default::default();
 
@@ -368,9 +393,14 @@ extern {
   fn SHA512_Final(result: *mut u8, context: *mut SHA512_CTX) -> libc::c_int;
 }
 
-pub struct SHA512 { context: SHA512_CTX }
+/// A SHA512 hash.
+pub struct SHA512 {
+  context: SHA512_CTX
+}
 
+/// A SHA512 hash.
 impl SHA512 {
+  /// Constructs a new SHA512 hash.
   pub fn new() -> SHA512 {
     let mut context: SHA512_CTX = Default::default();
 

@@ -1,28 +1,40 @@
+/// SSH Socket for big win
+
 use std::io;
 
+/// A Socket can make Version exchange, and this struct holds the result of
+/// that.
 pub struct VersionExchange {
   pub server: String,
   pub client: String
 }
 
+/// SSH Socket with a reader and writer.
 pub struct Socket<'a> {
+  /// Reader
   reader: &'a mut io::Read,
+  /// Writer
   writer: &'a mut io::Write
 }
 
 static SSH_IDENTIFIER_CLIENT: &'static str = "SSH-2.0-ssh.rs_0.0.1";
 
+/// Implementation of SSH Socket.
 impl<'a> Socket<'a> {
+  /// Constructs a new `Socket<'a>`, connecting given `reader` and `writer`
+  /// to it.
   pub fn new(reader: &'a mut io::Read, writer: &'a mut io::Write) -> Socket<'a> {
     return Socket { reader: reader, writer: writer };
   }
 
+  /// Performs Version exchange with the client, returning the result as a
+  /// struct.
   pub fn version_exchange(&mut self) -> VersionExchange {
     let mut client_identifier = SSH_IDENTIFIER_CLIENT.to_owned();
 
     client_identifier.push('\r');
     client_identifier.push('\n');
-    
+
     assert_eq!(self.writer.write(client_identifier.as_bytes()).unwrap(), client_identifier.len());
 
     let mut name = read_until(self.reader, '\n');

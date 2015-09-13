@@ -37,9 +37,14 @@ extern {
   fn <%= name %>_Final(result: *mut u8, context: *mut <%= context %>_CTX) -> libc::c_int;
 }
 
-pub struct <%= name %> { context: <%= context %>_CTX }
+/// A <%= name %> hash.
+pub struct <%= name %> {
+  context: <%= context %>_CTX
+}
 
+/// A <%= name %> hash.
 impl <%= name %> {
+  /// Constructs a new <%= name %> hash.
   pub fn new() -> <%= name %> {
     let mut context: <%= context %>_CTX = Default::default();
 
