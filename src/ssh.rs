@@ -33,13 +33,15 @@ pub mod transport {
   /// Reads and writes SSH messages.
   pub mod ssh_socket;
   /// The SSH conversation
+  ///
+  /// The individual conversation bits go into this module.
   pub mod ssh_transport;
 }
 
 /// SSH I/O
 mod sshio;
 /// SSH-related Packets
-mod packets;
+pub mod packets;
 
 fn main() {
   let mut tcp_socket = TcpStream::connect("127.0.0.1:9001").unwrap();

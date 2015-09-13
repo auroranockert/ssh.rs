@@ -20,6 +20,7 @@ use hash::{Hash, SHA256};
 
 use sshio::{SSHRead, SSHWrite};
 
+/// Holds socket, session identifier and version-exchange information.
 pub struct Transport<'a> {
   socket: &'a mut ssh_socket::Socket<'a>,
   session_identifier: Option<Vec<u8>>,
@@ -180,6 +181,7 @@ impl<'a> Transport<'a> {
     panic!("Oh noes, sowwy, not implemented :C")
   }
 
+  /// Reads bytes from the transport socket and returns an `SSHPacket`.
   pub fn read(&mut self) -> SSHPacket {
     let packet_length = self.socket.read_u32::<BigEndian>().unwrap();
     let padding_length = self.socket.read_u8().unwrap() as u32;
@@ -195,6 +197,9 @@ impl<'a> Transport<'a> {
     return SSHPacket::read(&mut reader);
   }
 
+  /// Understands and writes `SSHPacket` onto the transport socket.
+  ///
+  /// Messages are padded, and that's taken into account.
   pub fn write(&mut self, packet: &SSHPacket) {
     let mut writer = io::Cursor::new(Vec::new());
 
