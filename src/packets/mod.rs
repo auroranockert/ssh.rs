@@ -1,10 +1,10 @@
-/// SSH messages about Group Key Exchange
+/// Messages about Group Key Exchange
 pub mod group_exchange;
-/// SSH messages for disconnection
+/// Messages for disconnection
 pub mod disconnect;
-/// SSH messages for Key Exchange
+/// Messages for Key Exchange
 pub mod key_exchange;
-/// SSH messages for SSH_USERAUTH_REQUEST
+/// Messages for user authentication requests
 pub mod authentication_request;
 
 use std::io::{Read, Write};

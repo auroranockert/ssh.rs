@@ -25,12 +25,12 @@ use std::io::{Read, Write};
 
 use std::net::TcpStream;
 
-/// The `hash` module defines ways of hashing and digesting.
+/// The `hash` module defines ways of hashing and digesting
 pub mod hash;
 
-/// The `transport` module defines SSH socket and transport details.
+/// SSH socket and transport details
 pub mod transport {
-  /// Reads and writes SSH messages.
+  /// Reads and writes SSH messages
   pub mod ssh_socket;
   /// The SSH conversation
   ///
@@ -40,7 +40,7 @@ pub mod transport {
 
 /// SSH I/O
 mod sshio;
-/// SSH-related Packets
+/// SSH-related messages, defined as types
 pub mod packets;
 
 fn main() {
