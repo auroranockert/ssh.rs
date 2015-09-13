@@ -11,6 +11,12 @@ use std::io::{Read, Write};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
+/// An enumeration of known Packets.
+///
+/// The SSH protocol is defined in a series of RFCs published in January 2006.
+/// [An overview of the RFCs](http://www.snailbook.com/protocols.html).
+///
+/// You _may_ hunt around for things in there for a while.
 #[derive(Debug)]
 pub enum SSHPacket {
   Disconnect(disconnect::Disconnect),
