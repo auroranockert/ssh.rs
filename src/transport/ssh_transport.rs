@@ -1,7 +1,16 @@
 use std::io;
 use std::io::Write;
 
-use transport::ssh_socket;
+use crypto::mac;
+use crypto::mac::Mac;
+
+use crypto::hmac;
+
+use crypto::sha1;
+
+use crypto::aes;
+
+use crypto::symmetriccipher::SynchronousStreamCipher;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -11,19 +20,129 @@ use num::bigint::{BigInt, BigUint, ToBigInt, RandBigInt};
 use rand;
 use rand::Rng;
 
+use transport::ssh_socket;
+
 use packets::SSHPacket;
 use packets::group_exchange;
 use packets::key_exchange;
-use packets::authentication_request;
 
 use hash::{Hash, SHA256};
 
 use sshio::{SSHRead, SSHWrite};
 
+struct NoneMac;
+
+impl Mac for NoneMac {
+  fn input(&mut self, _: &[u8]) {
+    return;
+  }
+
+  fn reset(&mut self) {
+    return;
+  }
+
+  fn result(&mut self) -> mac::MacResult {
+    return mac::MacResult::new(&[]);
+  }
+
+  fn raw_result(&mut self, _: &mut [u8]) {
+    return;
+  }
+
+  fn output_bytes(&self) -> usize {
+    return 0;
+  }
+}
+
+trait Encrypter {
+  fn encrypt(&mut self, i: &[u8], o: &mut [u8]);
+
+  fn block_size(&self) -> usize;
+}
+
+struct NoneEncrypter;
+
+impl Encrypter for NoneEncrypter {
+  fn encrypt(&mut self, i: &[u8], o: &mut [u8]) {
+    o.clone_from_slice(i);
+  }
+
+  fn block_size(&self) -> usize {
+    return 8;
+  }
+}
+
+struct Aes128CtrEncrypter {
+  encryptor: Box<SynchronousStreamCipher>
+}
+
+impl Aes128CtrEncrypter {
+  fn new(iv: Vec<u8>, key: Vec<u8>) -> Aes128CtrEncrypter {
+    let encryptor = aes::ctr(aes::KeySize::KeySize128, &key[..], &iv[..]);
+
+    return Aes128CtrEncrypter { encryptor: encryptor };
+  }
+}
+
+impl Encrypter for Aes128CtrEncrypter {
+  fn encrypt(&mut self, input: &[u8], output: &mut [u8]) {
+    self.encryptor.process(input, output);
+  }
+
+  fn block_size(&self) -> usize {
+    return 16;
+  }
+}
+
+trait Decrypter {
+  fn decrypt(&mut self, i: &[u8], o: &mut [u8]);
+
+  fn block_size(&self) -> usize;
+}
+
+struct NoneDecrypter;
+
+impl Decrypter for NoneDecrypter {
+  fn decrypt(&mut self, i: &[u8], o: &mut [u8]) {
+    o.clone_from_slice(i);
+  }
+
+  fn block_size(&self) -> usize {
+    return 8;
+  }
+}
+
+struct Aes128CtrDecrypter {
+  decryptor: Box<SynchronousStreamCipher>
+}
+
+impl Aes128CtrDecrypter {
+  fn new(iv: Vec<u8>, key: Vec<u8>) -> Aes128CtrDecrypter {
+    let decryptor = aes::ctr(aes::KeySize::KeySize128, &key[..], &iv[..]);
+
+    return Aes128CtrDecrypter { decryptor: decryptor };
+  }
+}
+
+impl Decrypter for Aes128CtrDecrypter {
+  fn decrypt(&mut self, input: &[u8], output: &mut [u8]) {
+    self.decryptor.process(input, output);
+  }
+
+  fn block_size(&self) -> usize {
+    return 16;
+  }
+}
+
+
 pub struct Transport<'a> {
   socket: &'a mut ssh_socket::Socket<'a>,
   session_identifier: Option<Vec<u8>>,
-  version_exchange: ssh_socket::VersionExchange
+  version_exchange: ssh_socket::VersionExchange,
+  encrypter: Box<Encrypter>,
+  decrypter: Box<Decrypter>,
+  signer: Box<Mac>, signer_sequence_number: u32,
+  verifier: Box<Mac>, verifier_sequence_number: u32
 }
 
 impl<'a> Transport<'a> {
@@ -33,12 +152,16 @@ impl<'a> Transport<'a> {
     let mut transport = Transport {
       socket: socket,
       session_identifier: None,
-      version_exchange: vex
+      version_exchange: vex,
+      encrypter: Box::new(NoneEncrypter),
+      decrypter: Box::new(NoneDecrypter),
+      signer: Box::new(NoneMac), signer_sequence_number: 0,
+      verifier: Box::new(NoneMac), verifier_sequence_number: 0
     };
 
     let s_kex = match transport.read() {
       SSHPacket::KeyExchange(k) => k,
-      _ => panic!("FIXME: Unhandled message during key exchange")
+      pkt => panic!(format!("FIXME: Unhandled message during key exchange ({:?})", pkt))
     };
     let c_kex = transport.start_rekey();
 
@@ -143,8 +266,6 @@ impl<'a> Transport<'a> {
 
     let buffer = writer.into_inner();
 
-    println!("Buffer: {:?}", buffer);
-
     let mut hash = SHA256::new();
 
     hash.update(&buffer[..]);
@@ -167,52 +288,139 @@ impl<'a> Transport<'a> {
     let mac_key_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"E", &session_identifier[..]);
     let mac_key_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"F", &session_identifier[..]);
 
-    println!("Session ID: {:?}", h);
-    println!("IV (c2s): {:?}", iv_c2s);
-    println!("IV (s2c): {:?}", iv_s2c);
-    println!("Key (c2s): {:?}", enc_key_c2s);
-    println!("Key (s2c): {:?}", enc_key_s2c);
-    println!("MAC (c2s): {:?}", mac_key_c2s);
-    println!("MAC (s2c): {:?}", mac_key_s2c);
-
     self.write(&SSHPacket::NewKeys(key_exchange::NewKeys));
 
-    panic!("Oh noes, sowwy, not implemented :C")
+    let _ = match self.read() {
+      SSHPacket::NewKeys(k) => k,
+      pkt => panic!(format!("FIXME: Unhandled message during key exchange ({:?})", pkt))
+    };
+
+    println!("iv: {:?}, key: {:?}", iv_c2s, enc_key_c2s);
+
+    self.encrypter = Box::new(Aes128CtrEncrypter::new(iv_c2s, enc_key_c2s));
+    self.decrypter = Box::new(Aes128CtrDecrypter::new(iv_s2c, enc_key_s2c));
+
+    self.signer = Box::new(hmac::Hmac::new(sha1::Sha1::new(), &mac_key_c2s[..]));
+    self.verifier = Box::new(hmac::Hmac::new(sha1::Sha1::new(), &mac_key_s2c[..]));
   }
 
   pub fn read(&mut self) -> SSHPacket {
-    let packet_length = self.socket.read_u32::<BigEndian>().unwrap();
-    let padding_length = self.socket.read_u8().unwrap() as u32;
+    println!("Entering read");
+    
+    let (mut reader, packet_length) = {
+      let mut writer = io::Cursor::new(Vec::new());
+    
+      let length_data = self.socket.read_n(self.decrypter.block_size() as u32);
+      println!("Encrypted Length: {:?}", &length_data[0 .. 4]);
 
-    let payload = self.socket.read_n(packet_length - padding_length - 1);
-    let padding = self.socket.read_n(padding_length);
-    // let mac = self.read_n(mac_length);
+      let mut decrypted_length_data = length_data.clone();
+      self.decrypter.decrypt(&length_data[..], &mut decrypted_length_data[..]);
+      writer.write_all(&decrypted_length_data[..]).unwrap();
 
-    // TODO: Check padding, mac
+      let mut reader = io::Cursor::new(writer.into_inner());
+      let length = reader.read_u32::<BigEndian>().unwrap();
 
-    let mut reader = io::Cursor::new(payload);
+      println!("Length: {:?}", length);
 
-    return SSHPacket::read(&mut reader);
+      let already_read = self.decrypter.block_size() as u32 - 4;
+
+      let mut payload_writer = io::Cursor::new(Vec::new());
+      payload_writer.write_all(&reader.read_n(already_read)[..]).unwrap();
+
+      let encrypted_payload_data = self.socket.read_n(length - already_read);
+      let mut decrypted_payload_data = encrypted_payload_data.clone();
+      self.decrypter.decrypt(&encrypted_payload_data[..], &mut decrypted_payload_data[..]);
+      payload_writer.write_all(&decrypted_payload_data[..]).unwrap();
+
+      let mut reader = io::Cursor::new(payload_writer.into_inner());
+
+      (reader, length)
+    };
+
+    let padding_length = reader.read_u8().unwrap() as u32;
+
+    let payload = reader.read_n(packet_length - padding_length - 1);
+    let padding = reader.read_n(padding_length);
+    let mac = self.socket.read_n(self.verifier.output_bytes() as u32);
+    
+    let calculated_mac = {
+      let mut verifier_writer = io::Cursor::new(Vec::new());
+
+      verifier_writer.write_uint32(self.verifier_sequence_number);
+      verifier_writer.write_uint32(packet_length);
+      verifier_writer.write_u8(padding_length as u8).unwrap();
+      verifier_writer.write_all(&payload[..]).unwrap();
+      verifier_writer.write_all(&padding[..]).unwrap();
+
+      let buffer = verifier_writer.into_inner();
+
+      // println!("Seq: {:?}", self.verifier_sequence_number);
+      // println!("Buffer: {:?}", buffer);
+
+      self.verifier_sequence_number += 1;
+
+      self.verifier.reset();
+      self.verifier.input(&buffer[..]);
+      self.verifier.result()
+    };
+
+    // assert_eq!(mac, calculated_mac.code());
+
+    let mut packet_reader = io::Cursor::new(payload);
+
+    return SSHPacket::read(&mut packet_reader);
   }
 
   pub fn write(&mut self, packet: &SSHPacket) {
-    let mut writer = io::Cursor::new(Vec::new());
+    let payload = {
+      let mut writer = io::Cursor::new(Vec::new());
+      packet.write(&mut writer);
+      writer.into_inner()
+    };
 
-    packet.write(&mut writer);
+    let datastream = {
+      let mut writer = io::Cursor::new(Vec::new());
 
-    let payload = writer.into_inner();
+      let padding_length = self.encrypter.block_size() - (5 + payload.len()) % self.encrypter.block_size();
+      let padding_length = if padding_length < 4 { padding_length + self.encrypter.block_size() } else { padding_length };
 
-    let padding_length = 8 - (5 + payload.len()) % 8;
-    let padding_length = if padding_length < 4 { padding_length + 8 } else { padding_length };
+      writer.write_u32::<BigEndian>((payload.len() + padding_length + 1) as u32).unwrap();
+      writer.write_u8(padding_length as u8).unwrap();
 
-    self.socket.write_u32::<BigEndian>((payload.len() + padding_length + 1) as u32).unwrap();
-    self.socket.write_u8(padding_length as u8).unwrap();
+      let padding = vec![0u8; padding_length];
 
-    let padding = vec![0u8; padding_length];
+      writer.write_all(&payload[..]).unwrap();
+      writer.write_all(&padding[..]).unwrap();
 
-    self.socket.write_all(&payload[..]).unwrap();
-    self.socket.write_all(&padding[..]).unwrap();
-    // TODO: Calculate the MAC
+      writer.into_inner()
+    };
+
+    let mac = {
+      let mut signer_writer = io::Cursor::new(Vec::new());
+
+      signer_writer.write_uint32(self.signer_sequence_number);
+      signer_writer.write_all(&datastream[..]).unwrap();
+
+      self.signer_sequence_number += 1;
+
+      self.signer.reset();
+      self.signer.input(&signer_writer.into_inner()[..]);
+      self.signer.result()
+    };
+
+    let mut encrypted_datastream = datastream.clone();
+    self.encrypter.encrypt(&datastream[..], &mut encrypted_datastream[..]);
+
+    let binary_packet = {
+      let mut packet_writer = io::Cursor::new(Vec::new());
+
+      packet_writer.write_all(&encrypted_datastream[..]).unwrap();
+      packet_writer.write_all(mac.code()).unwrap();
+
+      packet_writer.into_inner()
+    };
+
+    self.socket.write_all(&binary_packet[..]).unwrap();
   }
 }
 

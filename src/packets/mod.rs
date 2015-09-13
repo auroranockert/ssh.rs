@@ -1,5 +1,6 @@
-pub mod group_exchange;
 pub mod disconnect;
+pub mod group_exchange;
+pub mod ignore;
 pub mod key_exchange;
 pub mod authentication_request;
 
@@ -10,6 +11,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 #[derive(Debug)]
 pub enum SSHPacket {
   Disconnect(disconnect::Disconnect),
+  Ignore(ignore::Ignore),
   KeyExchange(key_exchange::KeyExchangeInit),
   NewKeys(key_exchange::NewKeys),
   GroupExchangeRequest(group_exchange::Request),
@@ -24,7 +26,9 @@ impl SSHPacket {
     let t = reader.read_u8().unwrap();
 
     return match t {
+
       1 => SSHPacket::Disconnect(disconnect::Disconnect::read(reader)),
+      2 => SSHPacket::Ignore(ignore::Ignore::read(reader)),
       20 => SSHPacket::KeyExchange(key_exchange::KeyExchangeInit::read(reader)),
       21 => SSHPacket::NewKeys(key_exchange::NewKeys::read(reader)),
       31 => SSHPacket::GroupExchangeGroup(group_exchange::Group::read(reader)),
@@ -42,6 +46,10 @@ impl SSHPacket {
     match self {
       &SSHPacket::Disconnect(ref p) => {
         writer.write_u8(1).unwrap();
+        p.write(writer);
+      }
+      &SSHPacket::Ignore(ref p) => {
+        writer.write_u8(2).unwrap();
         p.write(writer);
       }
       &SSHPacket::KeyExchange(ref p) => {
