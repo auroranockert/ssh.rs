@@ -1,5 +1,5 @@
-mod read;
-mod write;
+pub mod read;
+pub mod write;
 
 pub use self::read::FromSSH;
 pub use self::write::ToSSH;

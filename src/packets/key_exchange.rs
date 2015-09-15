@@ -1,89 +1,97 @@
-use std::io::{Read, Write};
+packet_use!();
 
-use sshio::{SSHRead, SSHWrite};
+use rand;
+use rand::Rng;
 
-#[derive(Clone, Debug, Default)]
-pub struct KeyExchangeInit {
-  pub cookie: [u8; 16],
-  pub kex_algorithms: Vec<String>,
-  pub server_host_key_algorithms: Vec<String>,
-  pub encryption_algorithms_client_to_server: Vec<String>,
-  pub encryption_algorithms_server_to_client: Vec<String>,
-  pub mac_algorithms_client_to_server: Vec<String>,
-  pub mac_algorithms_server_to_client: Vec<String>,
-  pub compression_algorithms_client_to_server: Vec<String>,
-  pub compression_algorithms_server_to_client: Vec<String>,
-  pub languages_client_to_server: Vec<String>,
-  pub languages_server_to_client: Vec<String>,
-  pub first_kex_packet_follows: bool,
-  pub reserved: u32
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cookie {
+  pub cookie: [u8; 16]
 }
 
-impl KeyExchangeInit {
-  pub fn read(reader: &mut Read) -> KeyExchangeInit {
-    let mut reader = reader;
+impl Cookie {
+  pub fn new() -> Cookie {
+    return Cookie::from_rng(&mut rand::thread_rng());
+  }
 
+  pub fn from_rng(rng: &mut rand::Rng) -> Cookie {
     let mut cookie = [0u8; 16];
-    reader.read_n_into_buffer(&mut cookie);
 
-    let kex_algorithms = reader.read_name_list();
-    let server_host_key_algorithms = reader.read_name_list();
-    let encryption_algorithms_client_to_server = reader.read_name_list();
-    let encryption_algorithms_server_to_client = reader.read_name_list();
-    let mac_algorithms_client_to_server = reader.read_name_list();
-    let mac_algorithms_server_to_client = reader.read_name_list();
-    let compression_algorithms_client_to_server = reader.read_name_list();
-    let compression_algorithms_server_to_client = reader.read_name_list();
-    let languages_client_to_server = reader.read_name_list();
-    let languages_server_to_client = reader.read_name_list();
+    rng.fill_bytes(&mut cookie);
 
-    let first_kex_packet_follows = reader.read_bool();
-    let reserved = reader.read_uint32();
-
-    return KeyExchangeInit {
-      cookie: cookie,
-      kex_algorithms: kex_algorithms,
-      server_host_key_algorithms: server_host_key_algorithms,
-      encryption_algorithms_client_to_server: encryption_algorithms_client_to_server,
-      encryption_algorithms_server_to_client: encryption_algorithms_server_to_client,
-      mac_algorithms_client_to_server: mac_algorithms_client_to_server,
-      mac_algorithms_server_to_client: mac_algorithms_server_to_client,
-      compression_algorithms_client_to_server: compression_algorithms_client_to_server,
-      compression_algorithms_server_to_client: compression_algorithms_server_to_client,
-      languages_client_to_server: languages_client_to_server,
-      languages_server_to_client: languages_server_to_client,
-      first_kex_packet_follows: first_kex_packet_follows,
-      reserved: reserved
-    };
-  }
-
-  pub fn write(&self, writer: &mut Write) {
-    let mut writer = writer;
-
-    writer.write_all(&self.cookie).unwrap();
-    writer.write_name_list(&self.kex_algorithms);
-    writer.write_name_list(&self.server_host_key_algorithms);
-    writer.write_name_list(&self.encryption_algorithms_client_to_server);
-    writer.write_name_list(&self.encryption_algorithms_server_to_client);
-    writer.write_name_list(&self.mac_algorithms_client_to_server);
-    writer.write_name_list(&self.mac_algorithms_server_to_client);
-    writer.write_name_list(&self.compression_algorithms_client_to_server);
-    writer.write_name_list(&self.compression_algorithms_server_to_client);
-    writer.write_name_list(&self.languages_client_to_server);
-    writer.write_name_list(&self.languages_server_to_client);
-    writer.write_bool(self.first_kex_packet_follows);
-    writer.write_uint32(self.reserved);
+    return Cookie { cookie: cookie };
   }
 }
 
-#[derive(Clone, Debug, Default)]
+impl Default for Cookie {
+  fn default() -> Cookie {
+    return Cookie::new()
+  }
+}
+
+impl FromSSH for Cookie {
+  fn from_ssh(reader: &mut Read) -> byteorder::Result<Self> {
+    let mut cookie = [0u8; 16];
+
+    for i in 0 .. 16 {
+      cookie[i] = try!(FromSSH::from_ssh(reader));
+    }
+
+    return Ok(Cookie {
+      cookie: cookie
+    });
+  }
+}
+
+impl ToSSH for Cookie {
+  fn to_ssh(&self, writer: &mut Write) -> byteorder::Result<()> {
+    for i in 0 .. 16 {
+      try!(self.cookie[i].to_ssh(writer));
+    }
+
+    return Ok(());
+  }
+}
+
+#[cfg(test)]
+impl Arbitrary for Cookie {
+  fn arbitrary<G: Gen>(g: &mut G) -> Cookie {
+    return Cookie::from_rng(g);
+  }
+}
+
+packet!(KeyExchangeInit {
+  cookie: Cookie,
+  kex_algorithms: Vec<String>,
+  server_host_key_algorithms: Vec<String>,
+  encryption_algorithms_client_to_server: Vec<String>,
+  encryption_algorithms_server_to_client: Vec<String>,
+  mac_algorithms_client_to_server: Vec<String>,
+  mac_algorithms_server_to_client: Vec<String>,
+  compression_algorithms_client_to_server: Vec<String>,
+  compression_algorithms_server_to_client: Vec<String>,
+  languages_client_to_server: Vec<String>,
+  languages_server_to_client: Vec<String>,
+  first_kex_packet_follows: bool,
+  reserved: u32
+});
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct NewKeys;
 
-impl NewKeys {
-  pub fn read(_: &mut Read) -> NewKeys {
-    return NewKeys;
+impl FromSSH for NewKeys {
+  fn from_ssh(_: &mut Read) -> byteorder::Result<Self> {
+    return Ok(NewKeys);
   }
+}
 
-  pub fn write(&self, _: &mut Write) {
+impl ToSSH for NewKeys {
+  fn to_ssh(&self, _: &mut Write) -> byteorder::Result<()> {
+    return Ok(());
+  }
+}
+
+impl Arbitrary for NewKeys {
+  fn arbitrary<G: Gen>(_: &mut G) -> NewKeys {
+    return NewKeys;
   }
 }

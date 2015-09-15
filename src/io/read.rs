@@ -52,6 +52,14 @@ impl FromSSH for String {
   }
 }
 
+impl FromSSH for Vec<String> {
+  fn from_ssh(reader: &mut Read) -> byteorder::Result<Self> {
+    let result = try!(String::from_ssh(reader));
+
+    return Ok(result.split(',').map(|x| x.to_owned()).collect());
+  }
+}
+
 #[link(name = "gmp")]
 extern "C" {
   fn __gmpz_import(rop: mpz_srcptr, count: size_t, order: c_int, size: size_t, endian: c_int, nails: size_t, op: *const u8);

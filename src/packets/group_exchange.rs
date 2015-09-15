@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use num::bigint::BigInt;
 
-use sshio::{SSHRead, SSHWrite};
+use io::{SSHRead, SSHWrite};
 
 #[cfg(test)]
 use quickcheck::{Arbitrary, Gen};

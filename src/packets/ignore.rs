@@ -1,22 +1,5 @@
-use std::io::{Read, Write};
+packet_use!();
 
-use sshio::{SSHRead, SSHWrite};
-
-#[derive(Clone, Debug, Default)]
-pub struct Ignore {
+packet!(Ignore {
   data: String
-}
-
-impl Ignore {
-  pub fn read(reader: &mut Read) -> Ignore {
-    let mut reader = reader;
-
-    return Ignore { data: reader.read_string() };
-  }
-
-  pub fn write(&self, writer: &mut Write) {
-    let mut writer = writer;
-
-    writer.write_string(&self.data[..]);
-  }
-}
+});

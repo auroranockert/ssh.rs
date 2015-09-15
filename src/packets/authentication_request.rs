@@ -1,6 +1,8 @@
 use std::io::{Read, Write};
 
-use sshio::{SSHRead, SSHWrite};
+use byteorder;
+
+use io::{SSHRead, SSHWrite};
 
 #[cfg(test)]
 use quickcheck::{Arbitrary, Gen};
