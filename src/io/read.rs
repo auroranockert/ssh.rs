@@ -1,5 +1,4 @@
 use std::io::Read;
-use std::ptr;
 
 use libc::{c_int, size_t};
 

@@ -57,8 +57,6 @@ impl<'a> Transport<'a> {
   }
 
   pub fn read(&mut self) -> byteorder::Result<SSHPacket> {
-    let block_size = self.read_state.decrypter.block_size();
-
     let (payload, _, _) = {
       let packet_length = try!(u32::from_ssh(&mut self.socket)) as usize;
       let padding_length = try!(u8::from_ssh(&mut self.socket)) as usize;
@@ -82,16 +80,19 @@ impl<'a> Transport<'a> {
   }
 
   pub fn write(&mut self, packet: &SSHPacket) -> byteorder::Result<()> {
+    let block_size = self.write_state.encrypter.block_size();
+
     let payload = {
       let mut writer = io::Cursor::new(Vec::new());
-      packet.to_ssh(&mut writer);
+
+      try!(packet.to_ssh(&mut writer));
+
       writer.into_inner()
     };
 
-    let datastream = {
+    let packet = {
       let mut writer = io::Cursor::new(Vec::new());
 
-      let block_size = self.write_state.encrypter.block_size();
       let padding_length = block_size - (5 + payload.len()) % block_size;
       let padding_length = if padding_length < 4 { padding_length + block_size } else { padding_length };
 
@@ -100,38 +101,13 @@ impl<'a> Transport<'a> {
 
       let padding = vec![0u8; padding_length];
 
-      try!(writer.write_all(&payload[..]));
-      try!(writer.write_all(&padding[..]));
+      try!(writer.write_all(&payload));
+      try!(writer.write_all(&padding));
 
       writer.into_inner()
     };
 
-    let mac = {
-      let mut signer_writer = io::Cursor::new(Vec::new());
-
-      try!(self.write_state.sequence_number.to_ssh(&mut signer_writer));
-      try!(signer_writer.write_all(&datastream[..]));
-
-      self.write_state.sequence_number += 1;
-
-      self.write_state.mac.reset();
-      self.write_state.mac.input(&signer_writer.into_inner()[..]);
-      self.write_state.mac.result()
-    };
-
-    let mut encrypted_datastream = datastream.clone();
-    self.write_state.encrypter.encrypt(&datastream[..], &mut encrypted_datastream[..]);
-
-    let binary_packet = {
-      let mut packet_writer = io::Cursor::new(Vec::new());
-
-      try!(packet_writer.write_all(&encrypted_datastream[..]));
-      try!(packet_writer.write_all(mac.code()));
-
-      packet_writer.into_inner()
-    };
-
-    try!(self.socket.write_all(&binary_packet[..]));
+    try!(self.socket.write_all(&packet));
 
     return Ok(());
   }
