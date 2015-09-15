@@ -1,13 +1,13 @@
 use crypto::aes;
 use crypto::symmetriccipher::SynchronousStreamCipher;
 
-trait Encrypter {
+pub trait Encrypter {
   fn encrypt(&mut self, i: &[u8], o: &mut [u8]);
 
   fn block_size(&self) -> usize;
 }
 
-struct None;
+pub struct None;
 
 impl Encrypter for None {
   fn encrypt(&mut self, i: &[u8], o: &mut [u8]) {
@@ -19,7 +19,7 @@ impl Encrypter for None {
   }
 }
 
-struct Aes128Ctr {
+pub struct Aes128Ctr {
   encryptor: Box<SynchronousStreamCipher>
 }
 

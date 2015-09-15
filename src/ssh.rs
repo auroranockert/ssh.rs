@@ -5,8 +5,9 @@
 #![cfg_attr(test, feature(plugin))]
 #![cfg_attr(test, plugin(quickcheck_macros))]
 
-extern crate num;
+extern crate gmp;
 extern crate rand;
+extern crate libc;
 extern crate crypto;
 extern crate byteorder;
 
@@ -17,26 +18,28 @@ use std::io::{Read, Write};
 
 use std::net::TcpStream;
 
-pub mod hash;
+pub mod io;
+pub mod cryptography {
+  pub mod mac;
+  pub mod encrypter;
+  pub mod decrypter;
+}
+
+mod packets;
 
 pub mod transport {
   pub mod ssh_socket;
   pub mod ssh_transport;
 }
 
-mod sshio;
-mod packets;
-
 fn main() {
-  let mut tcp_socket = TcpStream::connect("127.0.0.1:9001").unwrap();
+  let mut tcp_socket = TcpStream::connect("127.0.0.1:22").unwrap();
 
   let reader = &mut tcp_socket.try_clone().unwrap() as &mut Read;
   let writer = &mut tcp_socket as &mut Write;
 
   let mut socket = transport::ssh_socket::Socket::new(reader, writer);
-  let mut transport = transport::ssh_transport::Transport::new(&mut socket);
-
-  println!("Here2");
+  let mut transport = transport::ssh_transport::Transport::new(&mut socket, false);
 
   // match transport.read() {
   //   packets::SSHPacket::Ignore(k) => println!("{:?}", k),
@@ -56,5 +59,5 @@ fn main() {
   // 
   // transport.rekey(&c_kex, &s_kex);
 
-  println!("Packet!: {:?}", transport.read());
+  println!("Packet!: {:?}", transport.read().unwrap());
 }

@@ -1,6 +1,6 @@
 use crypto::mac;
 
-struct None;
+pub struct None;
 
 impl mac::Mac for None {
   fn input(&mut self, _: &[u8]) {
