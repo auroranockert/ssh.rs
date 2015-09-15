@@ -90,6 +90,7 @@ impl ToSSH for NewKeys {
   }
 }
 
+#[cfg(test)]
 impl Arbitrary for NewKeys {
   fn arbitrary<G: Gen>(_: &mut G) -> NewKeys {
     return NewKeys;
