@@ -5,9 +5,9 @@ authors = ["Jens Nockert <jens@nockert.se>"]
 build = "build.rs"
 
 [dependencies]
-num = "*"
 rand = "0.3"
 byteorder = "0.3"
+rust-gmp = "*"
 rust-crypto = { git = "https://github.com/jmquigs/rust-crypto", commit = "b4aa28bef4619d20436e109ff16f91395d287be8" }
 
 [dev-dependencies]
