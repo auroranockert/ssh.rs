@@ -14,10 +14,6 @@ extern crate byteorder;
 #[cfg(test)]
 extern crate quickcheck;
 
-use std::io::{Read, Write};
-
-use std::net::TcpStream;
-
 pub mod io;
 pub mod cryptography {
   pub mod mac;
@@ -32,14 +28,12 @@ pub mod transport {
   pub mod ssh_transport;
 }
 
+pub mod session;
+
 fn main() {
-  let mut tcp_socket = TcpStream::connect("127.0.0.1:22").unwrap();
-
-  let reader = &mut tcp_socket.try_clone().unwrap() as &mut Read;
-  let writer = &mut tcp_socket as &mut Write;
-
-  let mut socket = transport::ssh_socket::Socket::new(reader, writer);
-  let mut transport = transport::ssh_transport::Transport::new(&mut socket, false);
+  let mut session = session::Session::new();
+  
+  session.connect("127.0.0.1:22").unwrap();
 
   // match transport.read() {
   //   packets::SSHPacket::Ignore(k) => println!("{:?}", k),
@@ -59,5 +53,5 @@ fn main() {
   // 
   // transport.rekey(&c_kex, &s_kex);
 
-  println!("Packet!: {:?}", transport.read().unwrap());
+  // println!("Packet!: {:?}", transport.read().unwrap());
 }

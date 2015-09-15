@@ -5,15 +5,15 @@ pub struct VersionExchange {
   pub client: String
 }
 
-pub struct Socket<'a> {
-  reader: &'a mut io::Read,
-  writer: &'a mut io::Write
+pub struct Socket {
+  reader: Box<io::Read>,
+  writer: Box<io::Write>
 }
 
 static SSH_IDENTIFIER: &'static str = "SSH-2.0-ssh.rs_0.0.1";
 
-impl<'a> Socket<'a> {
-  pub fn new(reader: &'a mut io::Read, writer: &'a mut io::Write) -> Socket<'a> {
+impl Socket {
+  pub fn new(reader: Box<io::Read>, writer: Box<io::Write>) -> Socket {
     return Socket { reader: reader, writer: writer };
   }
 
@@ -39,7 +39,7 @@ impl<'a> Socket<'a> {
   }
 
   fn read_version(&mut self) -> String {
-    let mut name = read_until(self.reader, '\n');
+    let mut name = read_until(&mut *self.reader, '\n');
 
     assert_eq!(name.pop(), Some('\r'));
     assert_eq!(&name[0 .. 8], "SSH-2.0-");
@@ -48,7 +48,7 @@ impl<'a> Socket<'a> {
   }
 
   fn read_server_version(&mut self) -> String {
-    let mut name = read_until(self.reader, '\n');
+    let mut name = read_until(&mut *self.reader, '\n');
 
     if name.pop() != Some('\r') || &name[0 .. 4] != "SSH-" {
       return self.read_server_version();
@@ -60,13 +60,13 @@ impl<'a> Socket<'a> {
   }
 }
 
-impl<'a> io::Read for Socket<'a> {
+impl io::Read for Socket {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     return self.reader.read(buf);
   }
 }
 
-impl<'a> io::Write for Socket<'a> {
+impl io::Write for Socket {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     return self.writer.write(buf);
   }
@@ -119,7 +119,7 @@ mod tests {
     let mut writer = Cursor::new(Vec::new());
     
     let version_exchange = {
-      let mut socket = Socket::new(&mut reader, &mut writer);
+      let mut socket = Socket::new(box reader, box writer);
 
       socket.version_exchange(false)
     };

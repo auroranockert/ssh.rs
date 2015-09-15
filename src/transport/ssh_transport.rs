@@ -27,16 +27,16 @@ pub struct ReadState {
   sequence_number: u32
 }
 
-pub struct Transport<'a> {
-  socket: &'a mut ssh_socket::Socket<'a>,
+pub struct Transport {
+  socket: ssh_socket::Socket,
   session_identifier: Option<Vec<u8>>,
   version_exchange: ssh_socket::VersionExchange,
   read_state: ReadState,
   write_state: WriteState
 }
 
-impl<'a> Transport<'a> {
-  pub fn new(socket: &'a mut ssh_socket::Socket<'a>, server: bool) -> Transport<'a> {
+impl Transport {
+  pub fn new(mut socket: ssh_socket::Socket, server: bool) -> Transport {
     let vex = socket.version_exchange(server);
 
     return Transport {
@@ -67,9 +67,9 @@ impl<'a> Transport<'a> {
       let mut padding = Vec::with_capacity(padding_length);
       let mut mac = Vec::with_capacity(mac_length);
 
-      try!(self.socket.take(payload_length as u64).read_to_end(&mut payload));
-      try!(self.socket.take(padding_length as u64).read_to_end(&mut padding));
-      try!(self.socket.take(mac_length as u64).read_to_end(&mut mac));
+      try!((&mut self.socket).take(payload_length as u64).read_to_end(&mut payload));
+      try!((&mut self.socket).take(padding_length as u64).read_to_end(&mut padding));
+      try!((&mut self.socket).take(mac_length as u64).read_to_end(&mut mac));
 
       (payload, padding, mac)
     };
