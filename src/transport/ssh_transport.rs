@@ -14,11 +14,13 @@ use rand::Rng;
 use packets::SSHPacket;
 use packets::group_exchange;
 use packets::key_exchange;
-use packets::authentication_request;
+//TODO unused import    use packets::authentication_request;
 
-use hash::{Hash, SHA256};
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
+const SHA256RESULT_SIZE: usize = 512/8;  // NOTE see Sha256.output_bits();
 
-use sshio::{SSHRead, SSHWrite};
+use sshio::{SSHRead, SSHWrite}; // TODO would replacing with rust-crypto buffers make sense?
 
 /// Holds socket, session identifier and version-exchange information.
 pub struct Transport<'a> {
@@ -146,27 +148,29 @@ impl<'a> Transport<'a> {
 
     println!("Buffer: {:?}", buffer);
 
-    let mut hash = SHA256::new();
+    let mut hash = Sha256::new();
 
-    hash.update(&buffer[..]);
+    hash.input(&buffer[..]);
 
-    let h = hash.digest();
+    //let mut h: [u8; sha256resultSize];
+    let mut h: Vec<u8> = vec![0; SHA256RESULT_SIZE]; // TODO should probably use fixed-size array here
+    hash.result(&mut h);
 
     let session_identifier = match &self.session_identifier {
-      &None => h.clone(),
-      &Some(ref s) => s.clone()
+        &None => h.clone(), // NOTE unfortunately, array is currently (2016-04) not Clone
+        &Some(ref s) => s.clone()
     };
 
     self.session_identifier = Some(session_identifier.clone());
 
-    let iv_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"A", &session_identifier[..]);
-    let iv_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"B", &session_identifier[..]);
+    let iv_c2s = generate_key(&mut Sha256::new(), &k, &h[..], b"A", &session_identifier[..]);
+    let iv_s2c = generate_key(&mut Sha256::new(), &k, &h[..], b"B", &session_identifier[..]);
 
-    let enc_key_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"C", &session_identifier[..]);
-    let enc_key_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"D", &session_identifier[..]);
+    let enc_key_c2s = generate_key(&mut Sha256::new(), &k, &h[..], b"C", &session_identifier[..]);
+    let enc_key_s2c = generate_key(&mut Sha256::new(), &k, &h[..], b"D", &session_identifier[..]);
 
-    let mac_key_c2s = generate_key(&mut SHA256::new(), &k, &h[..], b"E", &session_identifier[..]);
-    let mac_key_s2c = generate_key(&mut SHA256::new(), &k, &h[..], b"F", &session_identifier[..]);
+    let mac_key_c2s = generate_key(&mut Sha256::new(), &k, &h[..], b"E", &session_identifier[..]);
+    let mac_key_s2c = generate_key(&mut Sha256::new(), &k, &h[..], b"F", &session_identifier[..]);
 
     println!("Session ID: {:?}", h);
     println!("IV (c2s): {:?}", iv_c2s);
@@ -187,7 +191,7 @@ impl<'a> Transport<'a> {
     let padding_length = self.socket.read_u8().unwrap() as u32;
 
     let payload = self.socket.read_n(packet_length - padding_length - 1);
-    let padding = self.socket.read_n(padding_length);
+    //TODO unused variable: let padding = self.socket.read_n(padding_length);
     // let mac = self.read_n(mac_length);
 
     // TODO: Check padding, mac
@@ -221,16 +225,18 @@ impl<'a> Transport<'a> {
   }
 }
 
-fn generate_key(hsh: &mut Hash, k: &BigInt, h: &[u8], c: &[u8], sid: &[u8]) -> Vec<u8> {
+fn generate_key(hsh: &mut Digest, k: &BigInt, h: &[u8], c: &[u8], sid: &[u8]) -> Vec<u8> {
   let mut w = io::Cursor::new(Vec::new());
   w.write_mpint(k);
 
-  hsh.update(&w.into_inner()[..]);
-  hsh.update(h);
-  hsh.update(c);
-  hsh.update(sid);
+  hsh.input(&w.into_inner()[..]);
+  hsh.input(h);
+  hsh.input(c);
+  hsh.input(sid);
 
-  return hsh.digest();
+  let mut h: Vec<u8> = Vec::new();  // TODO initialize with known size of digest
+  hsh.result(&mut h);
+  return h
 }
 
 fn mod_exp(base: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {

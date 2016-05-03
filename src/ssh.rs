@@ -1,5 +1,5 @@
-#![feature(libc)]
-#![feature(convert)]
+//FIXME unused #![feature(libc)]
+//FIXME unused #![feature(convert)]
 
 #![cfg_attr(test, feature(plugin))]
 #![cfg_attr(test, plugin(quickcheck_macros))]
@@ -31,8 +31,7 @@ use std::io::{Read, Write};
 
 use std::net::TcpStream;
 
-/// The `hash` module defines ways of hashing and digesting
-pub mod hash;
+extern crate crypto;
 
 /// SSH socket and transport details
 pub mod transport {
