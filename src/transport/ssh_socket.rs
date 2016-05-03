@@ -106,7 +106,7 @@ mod tests {
 
     let mut reader = Cursor::new(server_identifier);
     let mut writer = Cursor::new(Vec::new());
-    
+
     let version_exchange = {
       let mut socket = Socket::new(&mut reader, &mut writer);
 
@@ -133,7 +133,7 @@ mod tests {
 
     let mut reader = Cursor::new(server_identifier);
     let mut writer = Cursor::new(Vec::new());
-    
+
     let mut socket = Socket::new(&mut reader, &mut writer);
 
     let _ = socket.version_exchange();

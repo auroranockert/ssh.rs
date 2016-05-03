@@ -1,5 +1,5 @@
-#![feature(libc)]
-#![feature(convert)]
+//FIXME unused #![feature(libc)]
+//FIXME unused #![feature(convert)]
 
 #![cfg_attr(test, feature(plugin))]
 #![cfg_attr(test, plugin(quickcheck_macros))]
@@ -31,17 +31,16 @@ use std::io::{Read, Write};
 
 use std::net::TcpStream;
 
-/// The `hash` module defines ways of hashing and digesting
-pub mod hash;
+extern crate crypto;
 
 /// SSH socket and transport details
 pub mod transport {
-  /// Reads and writes SSH messages
-  pub mod ssh_socket;
-  /// The SSH conversation
-  ///
-  /// The individual conversation bits go into this module.
-  pub mod ssh_transport;
+    /// Reads and writes SSH messages
+    pub mod ssh_socket;
+    /// The SSH conversation
+    ///
+    /// The individual conversation bits go into this module.
+    pub mod ssh_transport;
 }
 
 /// SSH I/O
@@ -50,13 +49,20 @@ mod sshio;
 pub mod packets;
 
 fn main() {
-  let mut tcp_socket = TcpStream::connect("127.0.0.1:9001").unwrap();
+    // parse program arguments
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2 {
+        println!("Usage: {} [hostname]:[port]", args[0]);
+        std::process::exit(128);
+    }
+    let address = args[1].as_str();
+    let mut tcp_socket = TcpStream::connect(address).unwrap();  //"127.0.0.1:9001").unwrap();
 
-  let reader = &mut tcp_socket.try_clone().unwrap() as &mut Read;
-  let writer = &mut tcp_socket as &mut Write;
+    let reader = &mut tcp_socket.try_clone().unwrap() as &mut Read;
+    let writer = &mut tcp_socket as &mut Write;
 
-  let mut socket = transport::ssh_socket::Socket::new(reader, writer);
-  let mut transport = transport::ssh_transport::Transport::new(&mut socket);
+    let mut socket = transport::ssh_socket::Socket::new(reader, writer);
+    let mut transport = transport::ssh_transport::Transport::new(&mut socket);
 
-  println!("Packet!: {:?}", transport.read());
+    println!("Packet!: {:?}", transport.read());
 }
